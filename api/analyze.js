@@ -1,26 +1,37 @@
 export default async function handler(req, res) {
-  // ==== CORS FIX ====
+  // ==== CORS HEADERS ====
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
-    return res.status(200).end(); // preflight request success
+    return res.status(200).end();
   }
 
-  // ==== BLOCK NON-POST ====
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // ==== ENV TOKEN ====
   const HF_TOKEN = process.env.HF_TOKEN;
   if (!HF_TOKEN) {
-    return res.status(500).json({ error: "HF_TOKEN missing on server" });
+    return res.status(500).json({
+      error: "HF_TOKEN missing on server"
+    });
   }
 
-  // ==== MODEL ====
   const MODEL_ID = "mrm8488/bert-tiny-finetuned-sms-spam-detection";
+
+  // 🟡 DEBUG: Show what Chrome extension is sending
+  console.log("BODY RECEIVED:", req.body);
+
+  const emailText = req.body.inputs || "";
+
+  if (!emailText || emailText.trim() === "") {
+    return res.status(400).json({
+      error: "No email text received",
+      received: req.body
+    });
+  }
 
   try {
     const hfResponse = await fetch(
@@ -31,9 +42,7 @@ export default async function handler(req, res) {
           "Authorization": `Bearer ${HF_TOKEN}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          inputs: req.body.inputs || ""
-        })
+        body: JSON.stringify({ inputs: emailText })
       }
     );
 
@@ -46,12 +55,11 @@ export default async function handler(req, res) {
       });
     }
 
-    // Extract result
     const result = data[0];
 
     return res.status(200).json({
-      label: result.label,
-      confidence: result.score,
+      label: result.label || "unknown",
+      confidence: result.score || 0,
       reason: "Model output parsed"
     });
 
@@ -62,3 +70,4 @@ export default async function handler(req, res) {
     });
   }
 }
+
