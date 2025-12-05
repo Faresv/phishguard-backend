@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  // ==== CORS HEADERS ====
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -14,24 +14,10 @@ export default async function handler(req, res) {
 
   const HF_TOKEN = process.env.HF_TOKEN;
   if (!HF_TOKEN) {
-    return res.status(500).json({
-      error: "HF_TOKEN missing on server"
-    });
+    return res.status(500).json({ error: "HF_TOKEN missing" });
   }
 
   const MODEL_ID = "mrm8488/bert-tiny-finetuned-sms-spam-detection";
-
-  // 🟡 DEBUG: Show what Chrome extension is sending
-  console.log("BODY RECEIVED:", req.body);
-
-  const emailText = req.body.inputs || "";
-
-  if (!emailText || emailText.trim() === "") {
-    return res.status(400).json({
-      error: "No email text received",
-      received: req.body
-    });
-  }
 
   try {
     const hfResponse = await fetch(
@@ -42,7 +28,7 @@ export default async function handler(req, res) {
           "Authorization": `Bearer ${HF_TOKEN}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ inputs: emailText })
+        body: JSON.stringify({ inputs: req.body.inputs || "" })
       }
     );
 
@@ -55,11 +41,30 @@ export default async function handler(req, res) {
       });
     }
 
-    const result = data[0];
+    // FIX: Your model returns nested arrays → extract properly
+    let output = null;
+
+    if (Array.isArray(data) && Array.isArray(data[0])) {
+      // your exact format
+      output = data[0][0];   // highest score is first element
+    } else if (Array.isArray(data)) {
+      output = data[0];
+    } else {
+      return res.status(500).json({
+        error: "Unexpected HF response structure",
+        raw: data
+      });
+    }
+
+    // Map labels
+    let mappedLabel =
+      output.label === "LABEL_1" ? "phishing" :
+      output.label === "LABEL_0" ? "safe" :
+      "unknown";
 
     return res.status(200).json({
-      label: result.label || "unknown",
-      confidence: result.score || 0,
+      label: mappedLabel,
+      confidence: output.score,
       reason: "Model output parsed"
     });
 
