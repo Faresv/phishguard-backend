@@ -1,8 +1,8 @@
 export default async function handler(req, res) {
-  // CORS
+  // CORS FIX (MOST IMPORTANT)
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
@@ -13,10 +13,6 @@ export default async function handler(req, res) {
   }
 
   const HF_TOKEN = process.env.HF_TOKEN;
-  if (!HF_TOKEN) {
-    return res.status(500).json({ error: "HF_TOKEN missing" });
-  }
-
   const MODEL_ID = "mrm8488/bert-tiny-finetuned-sms-spam-detection";
 
   try {
@@ -28,51 +24,21 @@ export default async function handler(req, res) {
           "Authorization": `Bearer ${HF_TOKEN}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ inputs: req.body.inputs || "" })
+        body: JSON.stringify({
+          inputs: req.body.text  // extension will send { text: "email text" }
+        })
       }
     );
 
     const data = await hfResponse.json();
 
-    if (!hfResponse.ok) {
-      return res.status(hfResponse.status).json({
-        error: "HF request failed",
-        details: data
-      });
-    }
-
-    // FIX: Your model returns nested arrays → extract properly
-    let output = null;
-
-    if (Array.isArray(data) && Array.isArray(data[0])) {
-      // your exact format
-      output = data[0][0];   // highest score is first element
-    } else if (Array.isArray(data)) {
-      output = data[0];
-    } else {
-      return res.status(500).json({
-        error: "Unexpected HF response structure",
-        raw: data
-      });
-    }
-
-    // Map labels
-    let mappedLabel =
-      output.label === "LABEL_1" ? "phishing" :
-      output.label === "LABEL_0" ? "safe" :
-      "unknown";
-
     return res.status(200).json({
-      label: mappedLabel,
-      confidence: output.score,
-      reason: "Model output parsed"
+      label: data[0].label,
+      score: data[0].score
     });
 
-  } catch (err) {
-    return res.status(500).json({
-      error: "Server error",
-      details: err.message
-    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 }
 
