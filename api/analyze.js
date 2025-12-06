@@ -1,4 +1,5 @@
 export default async function handler(req, res) {
+
   // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -32,7 +33,9 @@ export default async function handler(req, res) {
 
     const output = await hfResponse.json();
 
-    // ❗ NEW: Extract proper label + score
+    // ----------------------------
+    // ⭐ FINAL FIX: Extract label + score
+    // ----------------------------
     const result = output[0][0];
 
     return res.status(200).json({
