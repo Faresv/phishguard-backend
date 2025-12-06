@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  // CORS FIX (MOST IMPORTANT)
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -21,24 +21,31 @@ export default async function handler(req, res) {
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${HF_TOKEN}`,
+          Authorization: `Bearer ${HF_TOKEN}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          inputs: req.body.text  // extension will send { text: "email text" }
+          inputs: req.body.text
         })
       }
     );
 
-    const data = await hfResponse.json();
+    const output = await hfResponse.json();
+
+    // ❗ NEW: Extract proper label + score
+    const result = output[0][0];
 
     return res.status(200).json({
-      label: data[0].label,
-      score: data[0].score
+      label: result.label,
+      score: result.score,
+      reason: "Model output parsed"
     });
 
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
+  } catch (err) {
+    return res.status(500).json({
+      label: "unknown",
+      score: null,
+      reason: err.message
+    });
   }
 }
-
